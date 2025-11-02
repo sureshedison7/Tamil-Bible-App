@@ -216,6 +216,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _selectedBookIndex = 0;
   int _selectedChapter = 1;
   late TabController _tabController;
+  TabController? _subTabController;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   List<Map<String, dynamic>> _bookmarks = [];
@@ -234,6 +235,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _subTabController = TabController(length: 2, vsync: this);
     _tabController.addListener(_handleTabChange);
     _romanizedScrollController = ScrollController();
     _tamilScrollController = ScrollController();
@@ -262,6 +264,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void dispose() {
     _flutterTts.stop();
     _tabController.dispose();
+    _subTabController?.dispose();
     _romanizedScrollController.dispose();
     _tamilScrollController.dispose();
     _searchController.dispose();
@@ -405,6 +408,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('${sortedVerses.length} verses bookmarked as one'),
+        duration: const Duration(seconds: 1),
       ),
     );
   }
@@ -440,7 +444,10 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _selectedVerses.clear();
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${sortedVerses.length} verses copied!')),
+        SnackBar(
+          content: Text('${sortedVerses.length} verses copied!'),
+          duration: const Duration(seconds: 1),
+        ),
       );
     });
   }
@@ -462,7 +469,10 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _selectedVerses.clear();
     });
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Reading ${sortedVerses.length} verses aloud')),
+      SnackBar(
+        content: Text('Reading ${sortedVerses.length} verses aloud'),
+        duration: const Duration(seconds: 1),
+      ),
     );
   }
 
@@ -601,6 +611,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     content: Text(
                       'Bookmark Removed: $bookName $_selectedChapter:$verseNumber (${language.toUpperCase()})',
                     ),
+                    duration: const Duration(seconds: 1),
                   ),
                 );
               },
@@ -626,6 +637,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           content: Text(
             'Bookmark Added: $bookName $_selectedChapter:$verseNumber (${language.toUpperCase()})',
           ),
+          duration: const Duration(seconds: 1),
         ),
       );
     }
@@ -1183,6 +1195,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   content: Text(
                     'Bookmark with note added: $bookName $_selectedChapter:$verseNumber',
                   ),
+                  duration: const Duration(seconds: 1),
                 ),
               );
             },
@@ -1225,7 +1238,10 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(
                   context,
-                ).showSnackBar(const SnackBar(content: Text('Note removed')));
+                ).showSnackBar(const SnackBar(
+                  content: Text('Note removed'),
+                  duration: Duration(seconds: 1),
+                ));
               },
               child: const Text('Remove Note'),
             ),
@@ -1238,7 +1254,10 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               Navigator.pop(context);
               ScaffoldMessenger.of(
                 context,
-              ).showSnackBar(const SnackBar(content: Text('Note saved')));
+              ).showSnackBar(const SnackBar(
+                content: Text('Note saved'),
+                duration: Duration(seconds: 1),
+              ));
             },
             child: const Text('Save'),
           ),
@@ -1324,7 +1343,10 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       '($languageLabel) $bookName $_selectedChapter:$verseNumber\n"$text"';
                   Clipboard.setData(ClipboardData(text: shareText)).then((_) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Verse copied!')),
+                      const SnackBar(
+                        content: Text('Verse copied!'),
+                        duration: Duration(seconds: 1),
+                      ),
                     );
                   });
                 },
@@ -1446,57 +1468,17 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _addNote() {
-    final titleController = TextEditingController();
-    final contentController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Note'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              decoration: const InputDecoration(
-                hintText: 'Note title...',
-                border: OutlineInputBorder(),
-              ),
-              autofocus: true,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: contentController,
-              maxLines: 5,
-              decoration: const InputDecoration(
-                hintText: 'Note content...',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddNoteScreen(
+          onNoteSaved: (note) {
+            setState(() {
+              _notes.add(note);
+            });
+            _saveSettings();
+          },
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              if (titleController.text.isNotEmpty) {
-                setState(() {
-                  _notes.add({
-                    'id': DateTime.now().millisecondsSinceEpoch.toString(),
-                    'title': titleController.text,
-                    'content': contentController.text,
-                    'createdAt': DateTime.now().toIso8601String(),
-                  });
-                });
-                _saveSettings();
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
   }
@@ -1587,63 +1569,27 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _editNote(Map<String, dynamic> note) {
-    final titleController = TextEditingController(text: note['title']);
-    final contentController = TextEditingController(text: note['content']);
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Note'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              decoration: const InputDecoration(
-                hintText: 'Note title...',
-                border: OutlineInputBorder(),
-              ),
-              autofocus: true,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: contentController,
-              maxLines: 5,
-              decoration: const InputDecoration(
-                hintText: 'Note content...',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _notes.removeWhere((n) => n['id'] == note['id']);
-              });
-              _saveSettings();
-              Navigator.pop(context);
-            },
-            child: const Text('Delete'),
-          ),
-          TextButton(
-            onPressed: () {
-              if (titleController.text.isNotEmpty) {
-                setState(() {
-                  note['title'] = titleController.text;
-                  note['content'] = contentController.text;
-                });
-                _saveSettings();
-                Navigator.pop(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddNoteScreen(
+          existingNote: note,
+          onNoteSaved: (updatedNote) {
+            setState(() {
+              final index = _notes.indexWhere((n) => n['id'] == note['id']);
+              if (index != -1) {
+                _notes[index] = updatedNote;
               }
-            },
-            child: const Text('Save'),
-          ),
-        ],
+            });
+            _saveSettings();
+          },
+          onNoteDeleted: () {
+            setState(() {
+              _notes.removeWhere((n) => n['id'] == note['id']);
+            });
+            _saveSettings();
+          },
+        ),
       ),
     );
   }
@@ -1651,12 +1597,51 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildNotesView() {
     return Column(
       children: [
-        Padding(
+        Container(
           padding: const EdgeInsets.all(16),
-          child: ElevatedButton.icon(
-            onPressed: _addNote,
-            icon: const Icon(Icons.add),
-            label: const Text('Add Note'),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _addNote,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Note'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${_notes.length} notes',
+                  style: TextStyle(
+                    color: Theme.of(context).primaryColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         Expanded(
@@ -1665,106 +1650,31 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.note, size: 64, color: Colors.grey),
-                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color:
+                              Theme.of(context).primaryColor.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.note_add,
+                          size: 48,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
                       Text(
                         'No notes yet',
                         style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: _fontSize + 2,
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                          fontSize: _fontSize + 4,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                      const SizedBox(height: 8),
                       Text(
-                        'Tap the button above to add a note',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: _fontSize - 2,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: _notes.length,
-                  itemBuilder: (context, index) {
-                    final note = _notes[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      child: ListTile(
-                        title: Text(
-                          note['title'] ?? 'Untitled',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: _fontSize,
-                          ),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (note['content']?.toString().isNotEmpty ?? false)
-                              Text(
-                                note['content'],
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(fontSize: _fontSize - 2),
-                              ),
-                            const SizedBox(height: 4),
-                            Text(
-                              DateTime.parse(
-                                note['createdAt'],
-                              ).toString().split('.')[0],
-                              style: TextStyle(
-                                fontSize: _fontSize - 4,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                        onTap: () => _editNote(note),
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBookmarksView() {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: ElevatedButton.icon(
-            onPressed: _addNote,
-            icon: const Icon(Icons.add),
-            label: const Text('Add Note'),
-          ),
-        ),
-        Expanded(
-          child: _bookmarks.isEmpty && _notes.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.bookmark_border,
-                        size: 64,
-                        color: Colors.grey,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No bookmarks or notes yet',
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: _fontSize + 2,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        'Long press a verse to bookmark it or add a note above',
+                        'Create your first note to capture\nyour thoughts and reflections',
                         style: TextStyle(
                           color: Colors.grey[600],
                           fontSize: _fontSize - 2,
@@ -1775,165 +1685,434 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: _bookmarks.length + _notes.length,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _notes.length,
                   itemBuilder: (context, index) {
-                    if (index < _notes.length) {
-                      final note = _notes[index];
-                      return Card(
-                        margin: const EdgeInsets.symmetric(vertical: 8),
-                        child: ListTile(
-                          leading: const Icon(Icons.note, color: Colors.blue),
-                          title: Text(
-                            note['title'] ?? 'Untitled',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: _fontSize,
-                            ),
-                          ),
-                          subtitle: Column(
+                    final note = _notes[index];
+                    final category = note['category'] ?? 'Personal';
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: InkWell(
+                        onTap: () => _editNote(note),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if (note['content']?.toString().isNotEmpty ??
-                                  false)
-                                Text(
-                                  note['content'],
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(fontSize: _fontSize - 2),
-                                ),
-                              const SizedBox(height: 4),
-                              Text(
-                                DateTime.parse(
-                                  note['createdAt'],
-                                ).toString().split('.')[0],
-                                style: TextStyle(
-                                  fontSize: _fontSize - 4,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
-                          onTap: () => _viewNote(note),
-                          onLongPress: () => _showDeleteNoteDialog(note),
-                        ),
-                      );
-                    } else {
-                      final bookmarkIndex = index - _notes.length;
-                      final bookmarkItem = _bookmarks[bookmarkIndex];
-                      final isTamil = bookmarkItem['language'] == 'tamil';
-                      return InkWell(
-                        onTap: () => _navigateToVerse(bookmarkItem),
-                        onLongPress: () =>
-                            _showDeleteBookmarkDialog(bookmarkItem),
-                        child: Card(
-                          margin: const EdgeInsets.symmetric(vertical: 8),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        '${bookmarkItem['book']} ${bookmarkItem['chapter']}:${bookmarkItem['verse']} (${isTamil ? 'தமிழ்' : 'Romanized'})',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: _fontSize,
-                                          color: Theme.of(context).brightness ==
-                                                  Brightness.dark
-                                              ? Colors.white.withOpacity(0.87)
-                                              : Theme.of(context).primaryColor,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    IconButton(
-                                      icon: Icon(
-                                        Icons.note_add,
-                                        color: (bookmarkItem['note']
-                                                    ?.toString()
-                                                    .isNotEmpty ??
-                                                false)
-                                            ? Theme.of(
-                                                context,
-                                              ).colorScheme.secondary
-                                            : Colors.grey,
-                                      ),
-                                      onPressed: () =>
-                                          _showNoteDialog(bookmarkItem),
-                                    ),
-                                  ],
-                                ),
-                                Divider(
-                                  height: 10,
-                                  color: Theme.of(
-                                    context,
-                                  ).dividerColor.withAlpha(128),
-                                ),
-                                Text(
-                                  bookmarkItem['text']?.toString() ?? '',
-                                  style: TextStyle(
-                                    fontSize: _fontSize - 2,
-                                    height: 1.6,
-                                    fontFamily:
-                                        isTamil ? 'Noto Sans Tamil' : 'Roboto',
-                                    color: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium?.color,
-                                  ),
-                                ),
-                                if (bookmarkItem['note']
-                                        ?.toString()
-                                        .isNotEmpty ??
-                                    false) ...[
-                                  const SizedBox(height: 8),
+                              Row(
+                                children: [
                                   Container(
-                                    padding: const EdgeInsets.all(8),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.secondary.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(6),
+                                      color: _getCategoryColor(category),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Icon(
-                                          Icons.note,
-                                          size: 16,
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.secondary,
+                                          _getCategoryIcon(category),
+                                          size: 12,
+                                          color: Colors.white,
                                         ),
-                                        const SizedBox(width: 6),
-                                        Expanded(
-                                          child: Text(
-                                            bookmarkItem['note']?.toString() ??
-                                                '',
-                                            style: TextStyle(
-                                              fontSize: _fontSize - 4,
-                                              fontStyle: FontStyle.italic,
-                                              color: Theme.of(
-                                                context,
-                                              ).textTheme.bodySmall?.color,
-                                            ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          category,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
+                                  const Spacer(),
+                                  Text(
+                                    _formatNoteDate(
+                                        note['updatedAt'] ?? note['createdAt']),
+                                    style: TextStyle(
+                                      fontSize: _fontSize - 6,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
                                 ],
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                note['title'] ?? 'Untitled',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: _fontSize + 2,
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodyLarge
+                                      ?.color,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (note['content']?.toString().isNotEmpty ??
+                                  false) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  note['content'],
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: _fontSize - 2,
+                                    color: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.color,
+                                    height: 1.4,
+                                  ),
+                                ),
                               ],
-                            ),
+                            ],
                           ),
                         ),
-                      );
-                    }
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category) {
+      case 'Personal':
+        return Icons.person;
+      case 'Study':
+        return Icons.school;
+      case 'Prayer':
+        return Icons.favorite;
+      case 'Sermon':
+        return Icons.mic;
+      case 'Reflection':
+        return Icons.lightbulb;
+      default:
+        return Icons.note;
+    }
+  }
+
+  Color _getCategoryColor(String category) {
+    switch (category) {
+      case 'Personal':
+        return Colors.blue;
+      case 'Study':
+        return Colors.green;
+      case 'Prayer':
+        return Colors.purple;
+      case 'Sermon':
+        return Colors.orange;
+      case 'Reflection':
+        return Colors.teal;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _formatNoteDate(String? dateString) {
+    if (dateString == null) return 'Unknown';
+    try {
+      final date = DateTime.parse(dateString);
+      final now = DateTime.now();
+      final difference = now.difference(date);
+
+      if (difference.inDays == 0) {
+        if (difference.inHours == 0) {
+          return '${difference.inMinutes}m ago';
+        }
+        return '${difference.inHours}h ago';
+      } else if (difference.inDays == 1) {
+        return 'Yesterday';
+      } else if (difference.inDays < 7) {
+        return '${difference.inDays}d ago';
+      } else {
+        return '${date.day}/${date.month}/${date.year}';
+      }
+    } catch (e) {
+      return 'Unknown';
+    }
+  }
+
+  Widget _buildLibraryView() {
+    return Column(
+      children: [
+        Container(
+          color: Theme.of(context).cardColor,
+          child: TabBar(
+            controller: _subTabController!,
+            indicatorColor: Theme.of(context).primaryColor,
+            labelColor: Theme.of(context).primaryColor,
+            unselectedLabelColor: Colors.grey,
+            tabs: [
+              Tab(
+                icon: Icon(Icons.bookmark),
+                text: 'Bookmarks (${_bookmarks.length})',
+              ),
+              Tab(
+                icon: Icon(Icons.note),
+                text: 'Notes (${_notes.length})',
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _subTabController!,
+            children: [
+              _buildBookmarksView(),
+              _buildNotesView(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBookmarksView() {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.bookmark,
+                color: Theme.of(context).primaryColor,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Your Bookmarked Verses',
+                  style: TextStyle(
+                    fontSize: _fontSize + 2,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).textTheme.bodyLarge?.color,
+                  ),
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${_bookmarks.length}',
+                  style: TextStyle(
+                    color: Theme.of(context).primaryColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _bookmarks.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color:
+                              Theme.of(context).primaryColor.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.bookmark_border,
+                          size: 48,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'No bookmarks yet',
+                        style: TextStyle(
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                          fontSize: _fontSize + 4,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Long press any verse to bookmark it\nfor quick access later',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: _fontSize - 2,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _bookmarks.length,
+                  itemBuilder: (context, index) {
+                    final bookmarkItem = _bookmarks[index];
+                    final isTamil = bookmarkItem['language'] == 'tamil';
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: InkWell(
+                        onTap: () => _navigateToVerse(bookmarkItem),
+                        onLongPress: () =>
+                            _showDeleteBookmarkDialog(bookmarkItem),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          isTamil ? Colors.orange : Colors.blue,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      isTamil ? 'தமிழ்' : 'Romanized',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  IconButton(
+                                    icon: Icon(
+                                      Icons.note_add,
+                                      color: (bookmarkItem['note']
+                                                  ?.toString()
+                                                  .isNotEmpty ??
+                                              false)
+                                          ? Theme.of(context)
+                                              .colorScheme
+                                              .secondary
+                                          : Colors.grey,
+                                      size: 20,
+                                    ),
+                                    onPressed: () =>
+                                        _showNoteDialog(bookmarkItem),
+                                    tooltip: 'Add/Edit Note',
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                '${bookmarkItem['book']} ${bookmarkItem['chapter']}:${bookmarkItem['verse']}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: _fontSize + 2,
+                                  color: Theme.of(context).primaryColor,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                bookmarkItem['text']?.toString() ?? '',
+                                style: TextStyle(
+                                  fontSize: _fontSize - 1,
+                                  height: 1.5,
+                                  fontFamily:
+                                      isTamil ? 'Noto Sans Tamil' : 'Roboto',
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.color,
+                                ),
+                              ),
+                              if (bookmarkItem['note']?.toString().isNotEmpty ??
+                                  false) ...[
+                                const SizedBox(height: 12),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .secondary
+                                        .withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .secondary
+                                          .withOpacity(0.3),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        Icons.note,
+                                        size: 16,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .secondary,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          bookmarkItem['note']?.toString() ??
+                                              '',
+                                          style: TextStyle(
+                                            fontSize: _fontSize - 3,
+                                            fontStyle: FontStyle.italic,
+                                            color: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.color,
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
                   },
                 ),
         ),
@@ -2131,7 +2310,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           children: [
             Expanded(
               child: Text(
-                '$bookName ${_tabController.index != 2 ? _selectedChapter : ''}',
+                '$bookName ${_tabController.index < 2 ? _selectedChapter : ''}',
                 style: const TextStyle(fontWeight: FontWeight.bold),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -2161,7 +2340,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           tabs: const [
             Tab(icon: Icon(Icons.text_fields), text: 'Romanized'),
             Tab(icon: Icon(Icons.translate), text: 'தமிழ்'),
-            Tab(icon: Icon(Icons.bookmark), text: 'Bookmarks'),
+            Tab(icon: Icon(Icons.collections_bookmark), text: 'Library'),
           ],
         ),
       ),
@@ -2173,7 +2352,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               children: [
                 _buildLanguageView(isTamil: false),
                 _buildLanguageView(isTamil: true),
-                _buildBookmarksView(),
+                _buildLibraryView(),
               ],
             ),
           ),
@@ -2209,7 +2388,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
         ],
       ),
-      bottomNavigationBar: _tabController.index != 2 && books.isNotEmpty
+      bottomNavigationBar: _tabController.index < 2 && books.isNotEmpty
           ? _buildBottomBar(
               books.cast<Map<String, dynamic>>(),
               availableChapters,
@@ -2235,7 +2414,464 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 }
 
 // ====================================================================
-// 4. SETTINGS SCREEN WIDGET
+// 4. PROFESSIONAL ADD NOTE SCREEN WIDGET
+// ====================================================================
+class AddNoteScreen extends StatefulWidget {
+  final Map<String, dynamic>? existingNote;
+  final Function(Map<String, dynamic>) onNoteSaved;
+  final VoidCallback? onNoteDeleted;
+
+  const AddNoteScreen({
+    super.key,
+    this.existingNote,
+    required this.onNoteSaved,
+    this.onNoteDeleted,
+  });
+
+  @override
+  AddNoteScreenState createState() => AddNoteScreenState();
+}
+
+class AddNoteScreenState extends State<AddNoteScreen> {
+  late TextEditingController _titleController;
+  late TextEditingController _contentController;
+  final FocusNode _titleFocusNode = FocusNode();
+  final FocusNode _contentFocusNode = FocusNode();
+  bool _hasUnsavedChanges = false;
+  String _selectedCategory = 'Personal';
+  final List<String> _categories = [
+    'Personal',
+    'Study',
+    'Prayer',
+    'Sermon',
+    'Reflection'
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController =
+        TextEditingController(text: widget.existingNote?['title'] ?? '');
+    _contentController =
+        TextEditingController(text: widget.existingNote?['content'] ?? '');
+    _selectedCategory = widget.existingNote?['category'] ?? 'Personal';
+
+    _titleController.addListener(_onTextChanged);
+    _contentController.addListener(_onTextChanged);
+  }
+
+  void _onTextChanged() {
+    if (!_hasUnsavedChanges) {
+      setState(() {
+        _hasUnsavedChanges = true;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _contentController.dispose();
+    _titleFocusNode.dispose();
+    _contentFocusNode.dispose();
+    super.dispose();
+  }
+
+  Future<bool> _onWillPop() async {
+    if (!_hasUnsavedChanges) return true;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Unsaved Changes'),
+        content: const Text(
+            'You have unsaved changes. Do you want to discard them?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  void _saveNote() {
+    if (_titleController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a title for your note')),
+      );
+      _titleFocusNode.requestFocus();
+      return;
+    }
+
+    final note = {
+      'id': widget.existingNote?['id'] ??
+          DateTime.now().millisecondsSinceEpoch.toString(),
+      'title': _titleController.text.trim(),
+      'content': _contentController.text.trim(),
+      'category': _selectedCategory,
+      'createdAt':
+          widget.existingNote?['createdAt'] ?? DateTime.now().toIso8601String(),
+      'updatedAt': DateTime.now().toIso8601String(),
+    };
+
+    widget.onNoteSaved(note);
+    Navigator.pop(context);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(widget.existingNote != null
+            ? 'Note updated successfully'
+            : 'Note saved successfully'),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+
+  void _deleteNote() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Note'),
+        content: const Text(
+            'Are you sure you want to delete this note? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              widget.onNoteDeleted?.call();
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Note deleted successfully'),
+                  backgroundColor: Colors.red,
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _insertTemplate() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Insert Template',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.book),
+              title: const Text('Bible Study Template'),
+              onTap: () {
+                Navigator.pop(context);
+                _contentController.text +=
+                    '\n\nPassage: \nKey Verse: \nMain Theme: \nPersonal Application: \nPrayer Points: ';
+                _onTextChanged();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.favorite),
+              title: const Text('Prayer Request Template'),
+              onTap: () {
+                Navigator.pop(context);
+                _contentController.text +=
+                    '\n\nPrayer Request: \nScripture Reference: \nDate: ${DateTime.now().toString().split(' ')[0]}\nUpdate: ';
+                _onTextChanged();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.lightbulb),
+              title: const Text('Sermon Notes Template'),
+              onTap: () {
+                Navigator.pop(context);
+                _contentController.text +=
+                    '\n\nSpeaker: \nTopic: \nScripture: \nKey Points:\n1. \n2. \n3. \nAction Items: ';
+                _onTextChanged();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_hasUnsavedChanges,
+      onPopInvoked: (didPop) async {
+        if (!didPop && _hasUnsavedChanges) {
+          final shouldPop = await _onWillPop();
+          if (shouldPop && context.mounted) {
+            Navigator.of(context).pop();
+          }
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.existingNote != null ? 'Edit Note' : 'Add Note'),
+          actions: [
+            if (widget.existingNote != null)
+              IconButton(
+                icon: const Icon(Icons.delete),
+                onPressed: _deleteNote,
+                tooltip: 'Delete Note',
+              ),
+            IconButton(
+              icon: const Icon(Icons.insert_drive_file),
+              onPressed: _insertTemplate,
+              tooltip: 'Insert Template',
+            ),
+            IconButton(
+              icon: const Icon(Icons.save),
+              onPressed: _saveNote,
+              tooltip: 'Save Note',
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _titleController,
+                    focusNode: _titleFocusNode,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Enter note title...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.grey[800]
+                          : Colors.grey[100],
+                      prefixIcon: const Icon(Icons.title),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Theme.of(context).dividerColor,
+                      ),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _selectedCategory,
+                        isExpanded: true,
+                        icon: const Icon(Icons.arrow_drop_down),
+                        items: _categories.map((category) {
+                          return DropdownMenuItem(
+                            value: category,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _getCategoryIcon(category),
+                                  size: 20,
+                                  color: Theme.of(context).primaryColor,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(category),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedCategory = value!;
+                            _onTextChanged();
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Theme.of(context).dividerColor,
+                  ),
+                ),
+                child: TextField(
+                  controller: _contentController,
+                  focusNode: _contentFocusNode,
+                  maxLines: null,
+                  expands: true,
+                  textAlignVertical: TextAlignVertical.top,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    height: 1.5,
+                  ),
+                  decoration: InputDecoration(
+                    hintText:
+                        'Start writing your note here...\n\nTip: Use the template button above to insert common note formats.',
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.all(16),
+                    hintStyle: TextStyle(
+                      color: Colors.grey[500],
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        bottomNavigationBar: Container(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            8,
+            16,
+            MediaQuery.of(context).padding.bottom + 8,
+          ),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 4,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                size: 16,
+                color: Colors.grey[600],
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  widget.existingNote != null
+                      ? 'Last updated: ${_formatDate(widget.existingNote!['updatedAt'] ?? widget.existingNote!['createdAt'])}'
+                      : 'Tap save to create your note',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ),
+              if (_hasUnsavedChanges)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.orange,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'Unsaved',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category) {
+      case 'Personal':
+        return Icons.person;
+      case 'Study':
+        return Icons.school;
+      case 'Prayer':
+        return Icons.favorite;
+      case 'Sermon':
+        return Icons.mic;
+      case 'Reflection':
+        return Icons.lightbulb;
+      default:
+        return Icons.note;
+    }
+  }
+
+  String _formatDate(String dateString) {
+    try {
+      final date = DateTime.parse(dateString);
+      final now = DateTime.now();
+      final difference = now.difference(date);
+
+      if (difference.inDays == 0) {
+        if (difference.inHours == 0) {
+          return '${difference.inMinutes} min ago';
+        }
+        return '${difference.inHours}h ago';
+      } else if (difference.inDays == 1) {
+        return 'Yesterday';
+      } else if (difference.inDays < 7) {
+        return '${difference.inDays} days ago';
+      } else {
+        return '${date.day}/${date.month}/${date.year}';
+      }
+    } catch (e) {
+      return 'Unknown';
+    }
+  }
+}
+
+// ====================================================================
+// 5. SETTINGS SCREEN WIDGET
 // ====================================================================
 class SettingsScreen extends StatefulWidget {
   final double fontSize;
