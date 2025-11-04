@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart'
-    show rootBundle, Clipboard, ClipboardData;
+    show rootBundle, Clipboard, ClipboardData, SystemNavigator;
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -105,7 +105,9 @@ class MyAppState extends State<MyApp> {
         bodyLarge: TextStyle(color: Colors.white.withOpacity(0.87)),
         bodyMedium: TextStyle(color: Colors.white.withOpacity(0.60)),
       ),
-      dividerColor: Colors.grey[800],
+      dividerColor: Colors.grey[600],
+      iconTheme: const IconThemeData(color: Colors.white),
+      primaryIconTheme: const IconThemeData(color: Colors.white),
       useMaterial3: true,
     );
   }
@@ -230,6 +232,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _isSelectionMode = false;
   final Set<int> _selectedVerses = {};
   late FlutterTts _flutterTts;
+  DateTime? _lastBackPressed;
 
   @override
   void initState() {
@@ -1301,7 +1304,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   isBookmarked ? Icons.bookmark_remove : Icons.bookmark_add,
                   color: isBookmarked
                       ? Theme.of(context).colorScheme.secondary
-                      : Theme.of(context).primaryColor,
+                      : (Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white70
+                          : Theme.of(context).primaryColor),
                 ),
                 title: Text(isBookmarked ? 'Remove Bookmark' : 'Add Bookmark'),
                 onTap: () {
@@ -1315,7 +1320,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   color: isBookmarked &&
                           (bookmark['note']?.toString().isNotEmpty ?? false)
                       ? Theme.of(context).colorScheme.secondary
-                      : Theme.of(context).primaryColor,
+                      : (Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white70
+                          : Theme.of(context).primaryColor),
                 ),
                 title: Text(isBookmarked ? 'Edit Note' : 'Add Note'),
                 onTap: () {
@@ -1330,7 +1337,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ListTile(
                 leading: Icon(
                   Icons.copy,
-                  color: Theme.of(context).primaryColor,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white70
+                      : Theme.of(context).primaryColor,
                 ),
                 title: const Text('Copy Verse'),
                 onTap: () {
@@ -1354,7 +1363,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ListTile(
                 leading: Icon(
                   Icons.volume_up,
-                  color: Theme.of(context).primaryColor,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white70
+                      : Theme.of(context).primaryColor,
                 ),
                 title: const Text('Read Aloud'),
                 onTap: () {
@@ -1385,7 +1396,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       'Search verses in ${isTamil ? 'Tamil' : 'Romanized'}...',
                   prefixIcon: Icon(
                     Icons.search,
-                    color: Theme.of(context).primaryColor,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white70
+                        : Theme.of(context).primaryColor,
                   ),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
@@ -1617,6 +1630,8 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   icon: const Icon(Icons.add),
                   label: const Text('Add Note'),
                   style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).primaryColor,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -1635,7 +1650,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: Text(
                   '${_notes.length} notes',
                   style: TextStyle(
-                    color: Theme.of(context).primaryColor,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white
+                        : Theme.of(context).primaryColor,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
@@ -1660,7 +1677,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         child: Icon(
                           Icons.note_add,
                           size: 48,
-                          color: Theme.of(context).primaryColor,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white70
+                              : Theme.of(context).primaryColor,
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -1686,8 +1705,41 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 )
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
-                  itemCount: _notes.length,
+                  itemCount: _notes.length + 1,
                   itemBuilder: (context, index) {
+                    if (index == _notes.length) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20.0),
+                        child: Column(
+                          children: [
+                            Text(
+                              'Jesus Chosen Generation',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.color,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Powered by Jesus Grace',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.color,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      );
+                    }
                     final note = _notes[index];
                     final category = note['category'] ?? 'Personal';
                     return Card(
@@ -1850,32 +1902,41 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildLibraryView() {
     return Column(
       children: [
-        Container(
-          color: Theme.of(context).cardColor,
-          child: TabBar(
-            controller: _subTabController!,
-            indicatorColor: Theme.of(context).primaryColor,
-            labelColor: Theme.of(context).primaryColor,
-            unselectedLabelColor: Colors.grey,
-            tabs: [
-              Tab(
-                icon: Icon(Icons.bookmark),
-                text: 'Bookmarks (${_bookmarks.length})',
-              ),
-              Tab(
-                icon: Icon(Icons.note),
-                text: 'Notes (${_notes.length})',
-              ),
-            ],
-          ),
-        ),
         Expanded(
           child: TabBarView(
             controller: _subTabController!,
+            physics: const NeverScrollableScrollPhysics(),
             children: [
               _buildBookmarksView(),
               _buildNotesView(),
             ],
+          ),
+        ),
+        SafeArea(
+          top: false,
+          child: Container(
+            color: Theme.of(context).cardColor,
+            child: TabBar(
+              controller: _subTabController!,
+              indicatorColor: Theme.of(context).colorScheme.secondary,
+              labelColor: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white
+                  : Theme.of(context).primaryColor,
+              unselectedLabelColor:
+                  Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white70
+                      : Colors.grey,
+              tabs: [
+                Tab(
+                  icon: Icon(Icons.bookmark),
+                  text: 'Bookmarks (${_bookmarks.length})',
+                ),
+                Tab(
+                  icon: Icon(Icons.note),
+                  text: 'Notes (${_notes.length})',
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -1901,7 +1962,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             children: [
               Icon(
                 Icons.bookmark,
-                color: Theme.of(context).primaryColor,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white70
+                    : Theme.of(context).primaryColor,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1924,7 +1987,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: Text(
                   '${_bookmarks.length}',
                   style: TextStyle(
-                    color: Theme.of(context).primaryColor,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white
+                        : Theme.of(context).primaryColor,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
@@ -1949,7 +2014,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         child: Icon(
                           Icons.bookmark_border,
                           size: 48,
-                          color: Theme.of(context).primaryColor,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white70
+                              : Theme.of(context).primaryColor,
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -1975,8 +2042,41 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 )
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
-                  itemCount: _bookmarks.length,
+                  itemCount: _bookmarks.length + 1,
                   itemBuilder: (context, index) {
+                    if (index == _bookmarks.length) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20.0),
+                        child: Column(
+                          children: [
+                            Text(
+                              'Jesus Chosen Generation',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.color,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Powered by Jesus Grace',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.color,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      );
+                    }
                     final bookmarkItem = _bookmarks[index];
                     final isTamil = bookmarkItem['language'] == 'tamil';
                     return Card(
@@ -2042,7 +2142,10 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: _fontSize + 2,
-                                  color: Theme.of(context).primaryColor,
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? Colors.white
+                                      : Theme.of(context).primaryColor,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -2304,110 +2407,120 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         chapters.map((ch) => ch['number'] as int? ?? 0).toList();
     final bottomBarColor = Theme.of(context).primaryColor;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Row(
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        final now = DateTime.now();
+        if (_lastBackPressed == null ||
+            now.difference(_lastBackPressed!) > const Duration(seconds: 2)) {
+          _lastBackPressed = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Press back again to exit'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        } else {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '$bookName ${_tabController.index < 2 ? _selectedChapter : ''}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.settings),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SettingsScreen(
+                        fontSize: _fontSize,
+                        onFontSizeChanged: _saveFontSize,
+                      ),
+                    ),
+                  );
+                },
+                tooltip: 'Settings',
+              ),
+            ],
+          ),
+          bottom: TabBar(
+            controller: _tabController,
+            indicatorColor: Theme.of(context).colorScheme.secondary,
+            labelColor: Theme.of(context).brightness == Brightness.dark
+                ? Colors.white
+                : Colors.white,
+            unselectedLabelColor:
+                Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white70
+                    : Colors.white70,
+            tabs: const [
+              Tab(icon: Icon(Icons.text_fields), text: 'Romanized'),
+              Tab(icon: Icon(Icons.translate), text: 'தமிழ்'),
+              Tab(icon: Icon(Icons.collections_bookmark), text: 'Library'),
+            ],
+          ),
+        ),
+        body: Column(
           children: [
             Expanded(
-              child: Text(
-                '$bookName ${_tabController.index < 2 ? _selectedChapter : ''}',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.settings),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => SettingsScreen(
-                      fontSize: _fontSize,
-                      onFontSizeChanged: _saveFontSize,
-                    ),
-                  ),
-                );
-              },
-              tooltip: 'Settings',
-            ),
-          ],
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Theme.of(context).colorScheme.secondary,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(icon: Icon(Icons.text_fields), text: 'Romanized'),
-            Tab(icon: Icon(Icons.translate), text: 'தமிழ்'),
-            Tab(icon: Icon(Icons.collections_bookmark), text: 'Library'),
-          ],
-        ),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildLanguageView(isTamil: false),
-                _buildLanguageView(isTamil: true),
-                _buildLibraryView(),
-              ],
-            ),
-          ),
-          if (_tabController.index == 2)
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+              child: GestureDetector(
+                onHorizontalDragEnd: (details) {
+                  if (details.primaryVelocity! > 0) {
+                    // Swipe right
+                    if (_tabController.index > 0) {
+                      _tabController.animateTo(_tabController.index - 1);
+                    }
+                  } else if (details.primaryVelocity! < 0) {
+                    // Swipe left
+                    if (_tabController.index < 2) {
+                      _tabController.animateTo(_tabController.index + 1);
+                    }
+                  }
+                },
+                child: TabBarView(
+                  controller: _tabController,
                   children: [
-                    Text(
-                      'Jesus Chosen Generation',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).textTheme.bodyMedium?.color,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Powered by Jesus Grace',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).textTheme.bodySmall?.color,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
+                    _buildLanguageView(isTamil: false),
+                    _buildLanguageView(isTamil: true),
+                    _buildLibraryView(),
                   ],
                 ),
               ),
             ),
-        ],
-      ),
-      bottomNavigationBar: _tabController.index < 2 && books.isNotEmpty
-          ? _buildBottomBar(
-              books.cast<Map<String, dynamic>>(),
-              availableChapters,
-              bottomBarColor,
-            )
-          : null,
-      floatingActionButton: FloatingActionButton(
-        onPressed: _toggleTheme,
-        backgroundColor: Theme.of(context).primaryColor,
-        shape: const CircleBorder(),
-        tooltip: appThemeMode.value == ThemeMode.light
-            ? 'Switch to dark mode'
-            : 'Switch to light mode',
-        child: Icon(
-          appThemeMode.value == ThemeMode.light
-              ? Icons.dark_mode
-              : Icons.light_mode,
-          color: Colors.white,
+          ],
         ),
+        bottomNavigationBar: _tabController.index < 2 && books.isNotEmpty
+            ? _buildBottomBar(
+                books.cast<Map<String, dynamic>>(),
+                availableChapters,
+                bottomBarColor,
+              )
+            : null,
+        floatingActionButton: _tabController.index == 2
+            ? null
+            : FloatingActionButton(
+                onPressed: _toggleTheme,
+                backgroundColor: Theme.of(context).primaryColor,
+                shape: const CircleBorder(),
+                tooltip: appThemeMode.value == ThemeMode.light
+                    ? 'Switch to dark mode'
+                    : 'Switch to light mode',
+                child: Icon(
+                  appThemeMode.value == ThemeMode.light
+                      ? Icons.dark_mode
+                      : Icons.light_mode,
+                  color: Colors.white,
+                ),
+              ),
       ),
     );
   }
@@ -2466,6 +2579,26 @@ class AddNoteScreenState extends State<AddNoteScreen> {
         _hasUnsavedChanges = true;
       });
     }
+    _autoUpdate();
+  }
+
+  void _autoUpdate() {
+    if (_titleController.text.trim().isNotEmpty &&
+        widget.existingNote != null) {
+      final note = {
+        'id': widget.existingNote!['id'],
+        'title': _titleController.text.trim(),
+        'content': _contentController.text.trim(),
+        'category': _selectedCategory,
+        'createdAt': widget.existingNote!['createdAt'],
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      widget.onNoteSaved(note);
+      setState(() {
+        _hasUnsavedChanges = false;
+      });
+    }
   }
 
   @override
@@ -2480,25 +2613,34 @@ class AddNoteScreenState extends State<AddNoteScreen> {
   Future<bool> _onWillPop() async {
     if (!_hasUnsavedChanges) return true;
 
-    final result = await showDialog<bool>(
+    final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Unsaved Changes'),
-        content: const Text(
-            'You have unsaved changes. Do you want to discard them?'),
+        content:
+            const Text('You have unsaved changes. What would you like to do?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(context, 'cancel'),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(context, 'discard'),
             child: const Text('Discard'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'save'),
+            child: const Text('Save'),
           ),
         ],
       ),
     );
-    return result ?? false;
+
+    if (result == 'save') {
+      _saveNoteAndExit();
+      return true;
+    }
+    return result == 'discard';
   }
 
   void _saveNote() {
@@ -2533,6 +2675,25 @@ class AddNoteScreenState extends State<AddNoteScreen> {
         duration: const Duration(seconds: 1),
       ),
     );
+  }
+
+  void _saveNoteAndExit() {
+    if (_titleController.text.trim().isEmpty) {
+      return;
+    }
+
+    final note = {
+      'id': widget.existingNote?['id'] ??
+          DateTime.now().millisecondsSinceEpoch.toString(),
+      'title': _titleController.text.trim(),
+      'content': _contentController.text.trim(),
+      'category': _selectedCategory,
+      'createdAt':
+          widget.existingNote?['createdAt'] ?? DateTime.now().toIso8601String(),
+      'updatedAt': DateTime.now().toIso8601String(),
+    };
+
+    widget.onNoteSaved(note);
   }
 
   void _deleteNote() {
@@ -2715,7 +2876,10 @@ class AddNoteScreenState extends State<AddNoteScreen> {
                                 Icon(
                                   _getCategoryIcon(category),
                                   size: 20,
-                                  color: Theme.of(context).primaryColor,
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? Colors.white70
+                                      : Theme.of(context).primaryColor,
                                 ),
                                 const SizedBox(width: 8),
                                 Text(category),
@@ -2726,8 +2890,8 @@ class AddNoteScreenState extends State<AddNoteScreen> {
                         onChanged: (value) {
                           setState(() {
                             _selectedCategory = value!;
-                            _onTextChanged();
                           });
+                          _autoUpdate();
                         },
                       ),
                     ),
@@ -2805,23 +2969,6 @@ class AddNoteScreenState extends State<AddNoteScreen> {
                   ),
                 ),
               ),
-              if (_hasUnsavedChanges)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.orange,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text(
-                    'Unsaved',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
             ],
           ),
         ),
@@ -2986,7 +3133,9 @@ class SettingsScreenState extends State<SettingsScreen> {
               ),
               leading: Icon(
                 Icons.format_size,
-                color: Theme.of(context).primaryColor,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white70
+                    : Theme.of(context).primaryColor,
               ),
               title: const Text('Font Size'),
               subtitle: Text('${_currentFontSize.toInt()}'),
@@ -3012,7 +3161,9 @@ class SettingsScreenState extends State<SettingsScreen> {
             child: ListTile(
               leading: Icon(
                 Icons.language,
-                color: Theme.of(context).primaryColor,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white70
+                    : Theme.of(context).primaryColor,
               ),
               title: const Text('Default Language'),
               subtitle: const Text('Romanized (Default Tab)'),
@@ -3031,7 +3182,9 @@ class SettingsScreenState extends State<SettingsScreen> {
             child: ListTile(
               leading: Icon(
                 Icons.info_outline,
-                color: Theme.of(context).primaryColor,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white70
+                    : Theme.of(context).primaryColor,
               ),
               title: const Text('App Info'),
               subtitle: Text('Version: $_appVersion'),
