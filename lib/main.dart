@@ -219,8 +219,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _selectedChapter = 1;
   late TabController _tabController;
   TabController? _subTabController;
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
+  int _defaultTab = 0;
   List<Map<String, dynamic>> _bookmarks = [];
   List<Map<String, dynamic>> _notes = [];
   late ScrollController _romanizedScrollController;
@@ -228,11 +227,14 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Map<String, dynamic> _bibleData = {'books': []};
   List<Map<String, dynamic>> _filteredVerses = [];
   final Map<String, GlobalKey> _verseKeys = {};
-  late Timer _searchDebounce;
   bool _isSelectionMode = false;
   final Set<int> _selectedVerses = {};
   late FlutterTts _flutterTts;
   DateTime? _lastBackPressed;
+  bool _isSearching = false;
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+  bool _isAudioPlaying = false;
 
   @override
   void initState() {
@@ -244,10 +246,12 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _tamilScrollController = ScrollController();
     _flutterTts = FlutterTts();
     _initTts();
-    // Load bible data first, then load settings (including bookmarks)
-    // so that bookmarks can be validated against the loaded bible data.
     _loadBibleData().then((_) {
-      _loadSettings();
+      _loadSettings().then((_) {
+        setState(() {
+          _tabController.index = _defaultTab;
+        });
+      });
     });
   }
 
@@ -256,11 +260,26 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _flutterTts.setSpeechRate(0.5);
     _flutterTts.setVolume(1.0);
     _flutterTts.setPitch(1.0);
+    _flutterTts.setCompletionHandler(() {
+      setState(() {
+        _isAudioPlaying = false;
+      });
+    });
   }
 
   void _readAloud(String text) async {
     await _flutterTts.stop();
+    setState(() {
+      _isAudioPlaying = true;
+    });
     await _flutterTts.speak(text);
+  }
+
+  void _stopAudio() async {
+    await _flutterTts.stop();
+    setState(() {
+      _isAudioPlaying = false;
+    });
   }
 
   @override
@@ -292,6 +311,10 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final savedFontSize = prefs.getDouble('fontSize');
     if (savedFontSize != null) {
       _fontSize = savedFontSize;
+    }
+    final savedDefaultTab = prefs.getInt('defaultTab');
+    if (savedDefaultTab != null) {
+      _defaultTab = savedDefaultTab;
     }
     final savedBookmarks = prefs.getStringList('bookmarks');
     if (savedBookmarks != null) {
@@ -335,6 +358,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble('fontSize', _fontSize);
+    await prefs.setInt('defaultTab', _defaultTab);
     final bookmarkStrings =
         _bookmarks.map((item) => json.encode(item)).toList();
     await prefs.setStringList('bookmarks', bookmarkStrings);
@@ -503,10 +527,6 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _handleTabChange() {
     debugPrint('Tab changed to index: ${_tabController.index}');
     if (_tabController.indexIsChanging) {
-      if (_tabController.index != 2) {
-        _searchController.clear();
-        _searchQuery = '';
-      }
       _loadCurrentVerses();
     }
     // Ensure the widget rebuilds when the tab changes so UI elements
@@ -538,9 +558,6 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       );
       _filteredVerses =
           (chapter['verses'] as List? ?? []).cast<Map<String, dynamic>>();
-      if (_searchQuery.isNotEmpty) {
-        _filterVerses(_searchQuery);
-      }
       debugPrint('Initialized verses: ${_filteredVerses.length} verses loaded');
     } catch (e) {
       debugPrint('Error initializing filtered verses: $e');
@@ -551,33 +568,6 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _loadCurrentVerses() {
     setState(() {
       _initializeFilteredVerses();
-    });
-  }
-
-  void _filterVerses(String query) {
-    setState(() {
-      _searchQuery = query;
-      if (query.isEmpty) {
-        _initializeFilteredVerses();
-      } else {
-        final versesInChapter =
-            (_bibleData['books'] as List)[_selectedBookIndex]['chapters']
-                .firstWhere(
-          (c) => c['number'] == _selectedChapter,
-        )['verses'] as List;
-        _filteredVerses = versesInChapter
-            .where(
-              (verse) =>
-                  (verse['tamil']?.toString().toLowerCase() ?? '').contains(
-                    query.toLowerCase(),
-                  ) ||
-                  (verse['romanized']?.toString().toLowerCase() ?? '').contains(
-                    query.toLowerCase(),
-                  ),
-            )
-            .cast<Map<String, dynamic>>()
-            .toList();
-      }
     });
   }
 
@@ -689,6 +679,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _showBookSelector(List<Map<String, dynamic>> books) {
+    final scrollController = ScrollController(
+      initialScrollOffset: _selectedBookIndex * 60.0,
+    );
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -724,6 +717,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
             Expanded(
               child: ListView.builder(
+                controller: scrollController,
                 padding: const EdgeInsets.all(16),
                 itemCount: books.length,
                 itemBuilder: (context, index) {
@@ -734,12 +728,18 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       setState(() {
                         _selectedBookIndex = index;
                         _selectedChapter = 1;
-                        _searchController.clear();
-                        _searchQuery = '';
                       });
                       _initializeFilteredVerses();
                       _loadCurrentVerses();
                       Navigator.pop(context);
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (_romanizedScrollController.hasClients) {
+                          _romanizedScrollController.jumpTo(0);
+                        }
+                        if (_tamilScrollController.hasClients) {
+                          _tamilScrollController.jumpTo(0);
+                        }
+                      });
                     },
                     child: Container(
                       margin: const EdgeInsets.symmetric(vertical: 4),
@@ -827,8 +827,6 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     onTap: () {
                       setState(() {
                         _selectedChapter = chapter;
-                        _searchController.clear();
-                        _searchQuery = '';
                       });
                       _initializeFilteredVerses();
                       _loadCurrentVerses();
@@ -938,8 +936,6 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     setState(() {
       _selectedBookIndex = targetBookIndex;
       _selectedChapter = targetChapter;
-      _searchController.clear();
-      _searchQuery = '';
       _initializeFilteredVerses();
       debugPrint(
         'State updated: BookIndex=$targetBookIndex, Chapter=$targetChapter, Tab=$targetTabIndex',
@@ -1028,9 +1024,6 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               verseNumber,
               language,
             );
-    final queryIndex = _searchQuery.isNotEmpty
-        ? text.toLowerCase().indexOf(_searchQuery.toLowerCase())
-        : -1;
 
     return Column(
       key: verseKey,
@@ -1092,15 +1085,13 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ),
                   ),
                   Expanded(
-                    child: RichText(
-                      text: TextSpan(
-                        style: TextStyle(
-                          fontSize: _fontSize,
-                          height: 1.6,
-                          fontFamily: isTamil ? 'Noto Sans Tamil' : 'Roboto',
-                          color: Theme.of(context).textTheme.bodyMedium?.color,
-                        ),
-                        children: _buildTextSpans(text, queryIndex),
+                    child: Text(
+                      text,
+                      style: TextStyle(
+                        fontSize: _fontSize,
+                        height: 1.6,
+                        fontFamily: isTamil ? 'Noto Sans Tamil' : 'Roboto',
+                        color: Theme.of(context).textTheme.bodyMedium?.color,
                       ),
                     ),
                   ),
@@ -1118,35 +1109,6 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
       ],
     );
-  }
-
-  List<TextSpan> _buildTextSpans(String text, int queryIndex) {
-    if (_searchQuery.isEmpty || queryIndex == -1) {
-      return [TextSpan(text: text)];
-    }
-    final defaultColor = Theme.of(context).textTheme.bodyMedium?.color;
-    return [
-      TextSpan(
-        text: text.substring(0, queryIndex),
-        style: TextStyle(color: defaultColor),
-      ),
-      TextSpan(
-        text: text.substring(queryIndex, queryIndex + _searchQuery.length),
-        style: TextStyle(
-          backgroundColor: Theme.of(context).brightness == Brightness.dark
-              ? Colors.yellow.withOpacity(0.3)
-              : Colors.yellow.withOpacity(0.6),
-          fontWeight: FontWeight.bold,
-          color: Theme.of(context).brightness == Brightness.dark
-              ? Colors.black
-              : Colors.black87,
-        ),
-      ),
-      TextSpan(
-        text: text.substring(queryIndex + _searchQuery.length),
-        style: TextStyle(color: defaultColor),
-      ),
-    ];
   }
 
   void _addBookmarkWithNote(
@@ -1382,85 +1344,166 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildLanguageView({required bool isTamil}) {
+    final displayVerses = _searchQuery.isEmpty
+        ? _filteredVerses
+        : _filteredVerses.where((verse) {
+            final text = isTamil ? verse['tamil'] : verse['romanized'];
+            return text
+                .toString()
+                .toLowerCase()
+                .contains(_searchQuery.toLowerCase());
+          }).toList();
+    final bookName = (_bibleData['books'] as List?)?[_selectedBookIndex]
+                ?['name']
+            ?.toString() ??
+        'Unknown';
+
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              TextField(
-                controller: _searchController,
-                onChanged: _filterVerses,
-                decoration: InputDecoration(
-                  hintText:
-                      'Search verses in ${isTamil ? 'Tamil' : 'Romanized'}...',
-                  prefixIcon: Icon(
-                    Icons.search,
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.white70
-                        : Theme.of(context).primaryColor,
-                  ),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear, color: Colors.grey),
-                          onPressed: () {
-                            _searchController.clear();
-                            _filterVerses('');
-                          },
-                        )
-                      : null,
-                ),
-                style: TextStyle(
-                  color: Theme.of(context).textTheme.bodyLarge?.color,
+        if (_isSearching)
+          Container(
+            padding: const EdgeInsets.all(12),
+            color: Theme.of(context).cardColor,
+            child: TextField(
+              controller: _searchController,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'Search verses...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    setState(() {
+                      _searchController.clear();
+                      _searchQuery = '';
+                      _isSearching = false;
+                    });
+                  },
                 ),
               ),
-              if (_isSelectionMode) ...[
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _selectedVerses.isEmpty
-                            ? null
-                            : () => _bookmarkSelectedVerses(isTamil),
-                        icon: const Icon(Icons.bookmark_add),
-                        label: Text('Mark(${_selectedVerses.length})'),
-                      ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
+            ),
+          ),
+        if (_isSelectionMode)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).primaryColor.withOpacity(0.15),
+                  Theme.of(context).primaryColor.withOpacity(0.05)
+                ],
+              ),
+              border: Border(
+                  bottom: BorderSide(
+                      color: Theme.of(context).primaryColor.withOpacity(0.3),
+                      width: 2)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _selectedVerses.isEmpty
+                        ? null
+                        : () => _bookmarkSelectedVerses(isTamil),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      elevation: 2,
                     ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: _selectedVerses.isEmpty
-                          ? null
-                          : () => _copySelectedVerses(isTamil),
-                      icon: const Icon(Icons.copy),
-                      label: const Text('Copy'),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.bookmark_add, size: 20),
+                        const SizedBox(height: 4),
+                        Text('${_selectedVerses.length}',
+                            style: const TextStyle(
+                                fontSize: 11, fontWeight: FontWeight.bold)),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: _selectedVerses.isEmpty
-                          ? null
-                          : () => _readAloudSelectedVerses(isTamil),
-                      icon: const Icon(Icons.volume_up),
-                      label: const Text('Read'),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _selectedVerses.isEmpty
+                        ? null
+                        : () => _copySelectedVerses(isTamil),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      elevation: 2,
                     ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: _toggleSelectionMode,
-                      child: const Text('Cancel'),
+                    child: const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.copy, size: 20),
+                        SizedBox(height: 4),
+                        Text('Copy', style: TextStyle(fontSize: 11)),
+                      ],
                     ),
-                  ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _selectedVerses.isEmpty
+                        ? null
+                        : () => _readAloudSelectedVerses(isTamil),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      elevation: 2,
+                    ),
+                    child: const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.volume_up, size: 20),
+                        SizedBox(height: 4),
+                        Text('Read', style: TextStyle(fontSize: 11)),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _toggleSelectionMode,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      backgroundColor: Colors.red.shade400,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      elevation: 2,
+                    ),
+                    child: const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.close, size: 20),
+                        SizedBox(height: 4),
+                        Text('Exit', style: TextStyle(fontSize: 11)),
+                      ],
+                    ),
+                  ),
                 ),
               ],
-            ],
+            ),
           ),
-        ),
         Expanded(
-          child: _filteredVerses.isEmpty
+          child: displayVerses.isEmpty
               ? Center(
                   child: Text(
                     _searchQuery.isEmpty
                         ? 'No verses in this chapter'
-                        : 'No results for "$_searchQuery"',
+                        : 'No results found',
                     style: TextStyle(color: Colors.grey, fontSize: _fontSize),
                   ),
                 )
@@ -1468,10 +1511,34 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   controller: isTamil
                       ? _tamilScrollController
                       : _romanizedScrollController,
-                  padding: const EdgeInsets.only(top: 8, bottom: 72),
-                  itemCount: _filteredVerses.length,
+                  padding: const EdgeInsets.only(top: 0, bottom: 72),
+                  itemCount: displayVerses.length + 1,
                   itemBuilder: (context, index) {
-                    final verse = _filteredVerses[index];
+                    if (index == 0) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 8, horizontal: 16),
+                        color: Theme.of(context).primaryColor.withOpacity(0.1),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.menu_book,
+                                size: 16,
+                                color: Theme.of(context).primaryColor),
+                            const SizedBox(width: 8),
+                            Text(
+                              '$bookName $_selectedChapter',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).primaryColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    final verse = displayVerses[index - 1];
                     return _buildVerseItem(verse, isTamil: isTamil);
                   },
                 ),
@@ -2426,32 +2493,52 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '$bookName ${_tabController.index < 2 ? _selectedChapter : ''}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.settings),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SettingsScreen(
-                        fontSize: _fontSize,
-                        onFontSizeChanged: _saveFontSize,
-                      ),
-                    ),
-                  );
-                },
-                tooltip: 'Settings',
-              ),
-            ],
+          title: Text(
+            '$bookName ${_tabController.index < 2 ? _selectedChapter : ''}',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            overflow: TextOverflow.ellipsis,
           ),
+          actions: [
+            if (_tabController.index < 2)
+              IconButton(
+                icon: Icon(_isSearching ? Icons.search_off : Icons.search,
+                    size: 20),
+                onPressed: () {
+                  setState(() {
+                    _isSearching = !_isSearching;
+                    if (!_isSearching) {
+                      _searchController.clear();
+                      _searchQuery = '';
+                    }
+                  });
+                },
+                padding: const EdgeInsets.all(8),
+                constraints: const BoxConstraints(),
+              ),
+            IconButton(
+              icon: const Icon(Icons.settings, size: 20),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SettingsScreen(
+                      fontSize: _fontSize,
+                      onFontSizeChanged: _saveFontSize,
+                      defaultTab: _defaultTab,
+                      onDefaultTabChanged: (tab) {
+                        setState(() {
+                          _defaultTab = tab;
+                        });
+                        _saveSettings();
+                      },
+                    ),
+                  ),
+                );
+              },
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(),
+            ),
+          ],
           bottom: TabBar(
             controller: _tabController,
             indicatorColor: Theme.of(context).colorScheme.secondary,
@@ -2508,16 +2595,22 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         floatingActionButton: _tabController.index == 2
             ? null
             : FloatingActionButton(
-                onPressed: _toggleTheme,
-                backgroundColor: Theme.of(context).primaryColor,
+                onPressed: _isAudioPlaying ? _stopAudio : _toggleTheme,
+                backgroundColor: _isAudioPlaying
+                    ? Colors.red
+                    : Theme.of(context).primaryColor,
                 shape: const CircleBorder(),
-                tooltip: appThemeMode.value == ThemeMode.light
-                    ? 'Switch to dark mode'
-                    : 'Switch to light mode',
+                tooltip: _isAudioPlaying
+                    ? 'Stop audio'
+                    : (appThemeMode.value == ThemeMode.light
+                        ? 'Switch to dark mode'
+                        : 'Switch to light mode'),
                 child: Icon(
-                  appThemeMode.value == ThemeMode.light
-                      ? Icons.dark_mode
-                      : Icons.light_mode,
+                  _isAudioPlaying
+                      ? Icons.stop
+                      : (appThemeMode.value == ThemeMode.light
+                          ? Icons.dark_mode
+                          : Icons.light_mode),
                   color: Colors.white,
                 ),
               ),
@@ -3023,11 +3116,15 @@ class AddNoteScreenState extends State<AddNoteScreen> {
 class SettingsScreen extends StatefulWidget {
   final double fontSize;
   final Function(double) onFontSizeChanged;
+  final int defaultTab;
+  final Function(int) onDefaultTabChanged;
 
   const SettingsScreen({
     super.key,
     required this.fontSize,
     required this.onFontSizeChanged,
+    required this.defaultTab,
+    required this.onDefaultTabChanged,
   });
 
   @override
@@ -3036,18 +3133,21 @@ class SettingsScreen extends StatefulWidget {
 
 class SettingsScreenState extends State<SettingsScreen> {
   late double _currentFontSize;
+  late int _currentDefaultTab;
   final String _appVersion = '1.0.1';
+  final List<String> _tabNames = ['Romanized', 'Tamil', 'Library'];
 
   @override
   void initState() {
     super.initState();
     _currentFontSize = widget.fontSize;
+    _currentDefaultTab = widget.defaultTab;
   }
 
   void _showAppInfo() {
     showAboutDialog(
       context: context,
-      applicationName: 'Tamil Romanized Bible App',
+      applicationName: 'JCG BIBLE',
       applicationVersion: _appVersion,
       applicationIcon: Icon(
         Icons.menu_book,
@@ -3166,16 +3266,32 @@ class SettingsScreenState extends State<SettingsScreen> {
                     : Theme.of(context).primaryColor,
               ),
               title: const Text('Default Language'),
-              subtitle: const Text('Romanized (Default Tab)'),
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Default tab order is Romanized/Tamil/Bookmarks',
-                    ),
-                  ),
-                );
-              },
+              subtitle: Text(_tabNames[_currentDefaultTab]),
+              trailing: DropdownButton<int>(
+                value: _currentDefaultTab,
+                items: List.generate(3, (index) {
+                  return DropdownMenuItem(
+                    value: index,
+                    child: Text(_tabNames[index]),
+                  );
+                }),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _currentDefaultTab = value;
+                    });
+                    widget.onDefaultTabChanged(value);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Default tab set to ${_tabNames[value]}',
+                        ),
+                        duration: const Duration(seconds: 1),
+                      ),
+                    );
+                  }
+                },
+              ),
             ),
           ),
           Card(
