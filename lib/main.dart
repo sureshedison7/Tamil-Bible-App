@@ -1512,33 +1512,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ? _tamilScrollController
                       : _romanizedScrollController,
                   padding: const EdgeInsets.only(top: 0, bottom: 72),
-                  itemCount: displayVerses.length + 1,
+                  itemCount: displayVerses.length,
                   itemBuilder: (context, index) {
-                    if (index == 0) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 8, horizontal: 16),
-                        color: Theme.of(context).primaryColor.withOpacity(0.1),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.menu_book,
-                                size: 16,
-                                color: Theme.of(context).primaryColor),
-                            const SizedBox(width: 8),
-                            Text(
-                              '$bookName $_selectedChapter',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).primaryColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    final verse = displayVerses[index - 1];
+                    final verse = displayVerses[index];
                     return _buildVerseItem(verse, isTamil: isTamil);
                   },
                 ),
